@@ -61,7 +61,6 @@ fn conf() -> Conf {
 }
 
 fn readBits(bytes: &[u8], bitCursor: &mut usize) -> Option<u8> {
-
     if *bitCursor + 3 > bytes.len() * 8 {
         return None;
     }
@@ -69,22 +68,14 @@ fn readBits(bytes: &[u8], bitCursor: &mut usize) -> Option<u8> {
     let mut value = 0;
 
     for _ in 0..3 {
-
         let byte = bytes[*bitCursor / 8];
-
-        let bit =
-            (byte >> (7 - (*bitCursor % 8))) & 1;
-
-        value =
-            (value << 1) | bit;
-
+        let bit = (byte >> (7 - (*bitCursor % 8))) & 1;
+        value = (value << 1) | bit;
         *bitCursor += 1;
     }
 
     Some(value)
 }
-
-
 
 async fn loadMap(
     id: usize
@@ -138,10 +129,7 @@ async fn loadMap(
     (Vec::new(), (0, 0), (0, 0))
 }
 
-
-
-fn spriteRect(x:usize,y:usize)->Rect {
-
+fn spriteRect(x: usize, y: usize) -> Rect {
     Rect::new(
         x as f32 * 64.0,
         y as f32 * 64.0,
@@ -149,8 +137,6 @@ fn spriteRect(x:usize,y:usize)->Rect {
         64.0
     )
 }
-
-
 
 fn drawSpriteScaled(
     texture: &Texture2D,
@@ -172,431 +158,283 @@ fn drawSpriteScaled(
     );
 }
 
-
-
 fn getPlayerSprite(
-    direction:(i32,i32)
-)->(usize,usize){
-
+    direction: (i32, i32)
+) -> (usize, usize) {
     match direction {
-
-        (1,0)=>(0,2),
-        (0,1)=>(1,2),
-        (0,-1)=>(0,3),
-        (-1,0)=>(1,3),
-
-        _=>(0,2),
+        (1, 0) => (0, 2),
+        (0, 1) => (1, 2),
+        (0, -1) => (0, 3),
+        (-1, 0) => (1, 3),
+        _ => (0, 2),
     }
 }
 
-
-
-fn walkable(tile:u8)->bool {
-
-    tile == FLOOR ||
-    tile == GOAL
+fn walkable(tile: u8) -> bool {
+    tile == FLOOR || tile == GOAL
 }
 
-
-
 fn movePlayer(
-    map:&mut Vec<Vec<u8>>,
-    player:&mut (usize,usize),
-    direction:(i32,i32)
-)->bool{
-
-
-    let nx =
-        player.0 as i32 + direction.0;
-
-    let ny =
-        player.1 as i32 + direction.1;
-
+    map: &mut Vec<Vec<u8>>,
+    player: &mut (usize, usize),
+    direction: (i32, i32)
+) -> bool {
+    let nx = player.0 as i32 + direction.0;
+    let ny = player.1 as i32 + direction.1;
 
     if nx < 0 || ny < 0 {
         return false;
     }
 
-
     let nx = nx as usize;
     let ny = ny as usize;
 
-
-    if ny >= map.len()
-        || nx >= map[0].len(){
-
+    if ny >= map.len() || nx >= map[0].len() {
         return false;
     }
 
+    let target = map[ny][nx];
 
-    let target =
-        map[ny][nx];
+    if walkable(target) {
+        let old = map[player.1][player.0];
 
+        map[player.1][player.0] = if old == PLAYER_GOAL {
+            GOAL
+        } else {
+            FLOOR
+        };
 
+        map[ny][nx] = if target == GOAL {
+            PLAYER_GOAL
+        } else {
+            PLAYER
+        };
 
-    if walkable(target){
-
-
-        let old =
-            map[player.1][player.0];
-
-
-        map[player.1][player.0] =
-            if old == PLAYER_GOAL {
-                GOAL
-            }
-            else {
-                FLOOR
-            };
-
-
-        map[ny][nx] =
-            if target == GOAL {
-                PLAYER_GOAL
-            }
-            else {
-                PLAYER
-            };
-
-
-        *player=(nx,ny);
-
+        *player = (nx, ny);
         return true;
     }
 
-
-
-    if target == CRATE ||
-       target == CRATE_GOAL {
-
-
-        let bx =
-            nx as i32 + direction.0;
-
-        let by =
-            ny as i32 + direction.1;
-
+    if target == CRATE || target == CRATE_GOAL {
+        let bx = nx as i32 + direction.0;
+        let by = ny as i32 + direction.1;
 
         if bx < 0 || by < 0 {
             return false;
         }
 
+        let bx = bx as usize;
+        let by = by as usize;
 
-        let bx =
-            bx as usize;
+        let behind = map[by][bx];
 
-        let by =
-            by as usize;
+        if walkable(behind) {
+            map[by][bx] = if behind == GOAL {
+                CRATE_GOAL
+            } else {
+                CRATE
+            };
 
+            map[ny][nx] = if target == CRATE_GOAL {
+                PLAYER_GOAL
+            } else {
+                PLAYER
+            };
 
-        let behind =
-            map[by][bx];
+            let old = map[player.1][player.0];
 
+            map[player.1][player.0] = if old == PLAYER_GOAL {
+                GOAL
+            } else {
+                FLOOR
+            };
 
-        if walkable(behind){
-
-
-            map[by][bx] =
-                if behind == GOAL {
-                    CRATE_GOAL
-                }
-                else {
-                    CRATE
-                };
-
-
-            map[ny][nx] =
-                if target == CRATE_GOAL {
-                    PLAYER_GOAL
-                }
-                else {
-                    PLAYER
-                };
-
-
-            let old =
-                map[player.1][player.0];
-
-
-            map[player.1][player.0] =
-                if old == PLAYER_GOAL {
-                    GOAL
-                }
-                else {
-                    FLOOR
-                };
-
-
-            *player=(nx,ny);
-
+            *player = (nx, ny);
             return true;
         }
     }
 
-
     false
 }
 
-
-
 fn checkWin(
-    map:&Vec<Vec<u8>>
-)->bool{
-
+    map: &Vec<Vec<u8>>
+) -> bool {
     for row in map {
-
         for tile in row {
-
             if *tile == CRATE {
                 return false;
             }
         }
     }
-
     true
 }
 
+fn draw_custom_text(texture: &Texture2D, text: &str, x: f32, y: f32, scale: f32) {
+    let font_order = "Levl:1234567890";
+    let char_w = 11.0;
+    let char_h = texture.height();
 
+    for (i, c) in text.chars().enumerate() {
+        let target_char = if c == 'e' { 'e' } else { c }; 
+        
+        if let Some(index) = font_order.find(target_char) {
+            let src_x = index as f32 * char_w;
+            
+            draw_texture_ex(
+                texture,
+                x + (i as f32 * char_w * scale),
+                y,
+                WHITE,
+                DrawTextureParams {
+                    dest_size: Some(vec2(char_w * scale, char_h * scale)),
+                    source: Some(Rect::new(src_x, 0.0, char_w, char_h)),
+                    ..Default::default()
+                },
+            );
+        }
+    }
+}
 
 #[derive(Clone)]
 struct GameState {
-
-    map:Vec<Vec<u8>>,
-    player:(usize,usize),
-    direction:(i32,i32),
+    map: Vec<Vec<u8>>,
+    player: (usize, usize),
+    direction: (i32, i32),
 }
-
-
 
 #[macroquad::main(conf)]
 async fn main() {
-    
-
     let asset_bytes = include_bytes!("../assets.png");
     let texture = Texture2D::from_file_with_format(asset_bytes, None);
-
     texture.set_filter(FilterMode::Nearest);
 
+    let font_bytes = include_bytes!("../font.png");
+    let font_texture = Texture2D::from_file_with_format(font_bytes, None);
+    font_texture.set_filter(FilterMode::Nearest);
 
     let mut currentLevel = 1usize;
 
+    let mut level = loadMap(currentLevel - 1).await;
 
-    let mut level =
-        loadMap(currentLevel-1).await;
+    let mut map = level.0;
+    let mut size = level.1;
+    let mut player = level.2;
 
+    let mut playerDirection = (1, 0);
 
-    let mut map =
-        level.0;
+    let mut history: Vec<GameState> = Vec::new();
 
+    let mut levelInput = String::new();
 
-    let mut size =
-        level.1;
-
-
-    let mut player =
-        level.2;
-
-
-
-    let mut playerDirection =
-        (1,0);
-
-
-    let mut history:
-        Vec<GameState> = Vec::new();
-
-
-
-    let mut levelInput =
-        String::new();
-
-
-    let mut enteringLevel =
-        false;
-
-
+    let mut enteringLevel = false;
 
     loop {
-
-
-        if is_key_pressed(KeyCode::L){
-
+        if is_key_pressed(KeyCode::L) {
             enteringLevel = true;
             levelInput.clear();
         }
 
-
-
         if enteringLevel {
-
-
-            while let Some(c)=get_char_pressed(){
-
-                if c.is_ascii_digit()
-                && levelInput.len()<2 {
-
+            while let Some(c) = get_char_pressed() {
+                if c.is_ascii_digit() && levelInput.len() < 2 {
                     levelInput.push(c);
                 }
             }
 
-
-            if is_key_pressed(KeyCode::Backspace){
-
+            if is_key_pressed(KeyCode::Backspace) {
                 levelInput.pop();
             }
 
-
-            if is_key_pressed(KeyCode::Escape){
-
-                enteringLevel=false;
+            if is_key_pressed(KeyCode::Escape) {
+                enteringLevel = false;
             }
 
+            if is_key_pressed(KeyCode::Enter) {
+                if let Ok(number) = levelInput.parse::<usize>() {
+                    if number >= 1 && number <= MAX_LEVEL {
+                        currentLevel = number;
 
-            if is_key_pressed(KeyCode::Enter){
+                        level = loadMap(currentLevel - 1).await;
 
-
-                if let Ok(number)=
-                    levelInput.parse::<usize>(){
-
-
-                    if number >= 1
-                    && number <= MAX_LEVEL {
-
-
-                        currentLevel=number;
-
-
-                        level =
-                            loadMap(currentLevel-1).await;
-
-
-                        map=level.0;
-                        size=level.1;
-                        player=level.2;
-
+                        map = level.0;
+                        size = level.1;
+                        player = level.2;
 
                         history.clear();
 
-                        playerDirection=(1,0);
+                        playerDirection = (1, 0);
                     }
                 }
 
-
-                enteringLevel=false;
+                enteringLevel = false;
             }
-        }
+        } else {
+            if is_key_pressed(KeyCode::R) {
+                level = loadMap(currentLevel - 1).await;
 
-
-        else {
-
-
-            if is_key_pressed(KeyCode::R){
-
-                level =
-                    loadMap(currentLevel-1).await;
-
-                map=level.0;
-                player=level.2;
+                map = level.0;
+                player = level.2;
 
                 history.clear();
 
-                playerDirection=(1,0);
+                playerDirection = (1, 0);
             }
-
-
 
             if is_key_pressed(KeyCode::Backspace)
-            || (
-                is_key_down(KeyCode::LeftControl)
-                && is_key_pressed(KeyCode::Z)
-            ){
-
-                if let Some(old)=history.pop(){
-
-                    map=old.map;
-                    player=old.player;
-                    playerDirection=old.direction;
+                || (is_key_down(KeyCode::LeftControl) && is_key_pressed(KeyCode::Z))
+            {
+                if let Some(old) = history.pop() {
+                    map = old.map;
+                    player = old.player;
+                    playerDirection = old.direction;
                 }
             }
 
+            let direction = if is_key_pressed(KeyCode::Left) {
+                Some((-1, 0))
+            } else if is_key_pressed(KeyCode::Right) {
+                Some((1, 0))
+            } else if is_key_pressed(KeyCode::Up) {
+                Some((0, -1))
+            } else if is_key_pressed(KeyCode::Down) {
+                Some((0, 1))
+            } else {
+                None
+            };
 
-
-            let direction =
-
-                if is_key_pressed(KeyCode::Left){
-                    Some((-1,0))
-                }
-
-                else if is_key_pressed(KeyCode::Right){
-                    Some((1,0))
-                }
-
-                else if is_key_pressed(KeyCode::Up){
-                    Some((0,-1))
-                }
-
-                else if is_key_pressed(KeyCode::Down){
-                    Some((0,1))
-                }
-
-                else {
-                    None
-                };
-
-
-
-            if let Some(dir)=direction{
-
-
-                history.push(GameState{
-
-                    map:map.clone(),
+            if let Some(dir) = direction {
+                history.push(GameState {
+                    map: map.clone(),
                     player,
-                    direction:playerDirection,
+                    direction: playerDirection,
                 });
 
+                playerDirection = dir;
 
-                playerDirection=dir;
-
-
-                if !movePlayer(
-                    &mut map,
-                    &mut player,
-                    dir
-                ){
-
+                if !movePlayer(&mut map, &mut player, dir) {
                     history.pop();
                 }
             }
 
-
-
-            if checkWin(&map){
-
+            if checkWin(&map) {
                 if currentLevel < MAX_LEVEL {
-
                     currentLevel += 1;
 
+                    level = loadMap(currentLevel - 1).await;
 
-                    level =
-                        loadMap(currentLevel-1).await;
-
-
-                    map=level.0;
-                    size=level.1;
-                    player=level.2;
-
+                    map = level.0;
+                    size = level.1;
+                    player = level.2;
 
                     history.clear();
-                    playerDirection=(1,0);
+                    playerDirection = (1, 0);
                 }
             }
         }
 
-
         let base_w = size.0 as f32 * TILE_SIZE;
         let base_h = size.1 as f32 * TILE_SIZE;
-        
+
         if screen_width() < base_w || screen_height() < base_h {
             request_new_screen_size(
                 f32::max(screen_width(), base_w),
@@ -612,7 +450,7 @@ async fn main() {
 
         let vp_width = base_w * scale;
         let vp_height = base_h * scale;
-        
+
         let vp_x = f32::floor((screen_w - vp_width) / 2.0);
         let vp_y = f32::floor((screen_h - vp_height) / 2.0);
 
@@ -655,7 +493,10 @@ async fn main() {
 
         if enteringLevel {
             draw_rectangle(100.0, 100.0, 300.0, 80.0, GRAY);
-            draw_text(&format!("Level: {}", levelInput), 120.0, 150.0, 32.0, WHITE);
+            
+            let text_string = format!("Level:{}", levelInput);
+            
+            draw_custom_text(&font_texture, &text_string, 120.0, 125.0, 2.0);
         }
 
         next_frame().await;
