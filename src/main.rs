@@ -88,103 +88,54 @@ fn readBits(bytes: &[u8], bitCursor: &mut usize) -> Option<u8> {
 
 async fn loadMap(
     id: usize
-) -> (Vec<Vec<u8>>, (usize,usize), (usize,usize)) {
-
-    let bytes = match load_file("levels.bin").await {
-        Ok(b) => b,
-        Err(_) => return (Vec::new(),(0,0),(0,0)),
-    };
-
+) -> (Vec<Vec<u8>>, (usize, usize), (usize, usize)) {
+    let bytes = include_bytes!("../levels.bin");
 
     let mut byteCursor = 0;
     let mut levelIndex = 0;
 
-
     while byteCursor + 2 <= bytes.len() {
-
-
-        let width =
-            bytes[byteCursor] as usize;
-
-        let height =
-            bytes[byteCursor + 1] as usize;
-
-
+        let width = bytes[byteCursor] as usize;
+        let height = bytes[byteCursor + 1] as usize;
         byteCursor += 2;
 
-
-        let mut map =
-            vec![vec![FLOOR;width];height];
-
-
-        let mut player =
-            (0,0);
-
-
-        let mut bitCursor =
-            byteCursor * 8;
-
-
+        let mut map = vec![vec![FLOOR; width]; height];
+        let mut player = (0, 0);
+        let mut bitCursor = byteCursor * 8;
 
         for y in 0..height {
-
             for x in 0..width {
+                let tile = readBits(bytes, &mut bitCursor).unwrap();
 
-
-                let tile =
-                    readBits(&bytes,&mut bitCursor)
-                    .unwrap();
-
-
-
-                map[y][x] =
-                    match tile {
-
-                        1 => WALL,
-                        2 => FLOOR,
-                        3 => GOAL,
-                        4 => GOAL,
-                        5 => CRATE,
-
-                        6 => {
-                            player = (x,y);
-                            PLAYER
-                        },
-
-                        _ => FLOOR,
-                    };
+                map[y][x] = match tile {
+                    1 => WALL,
+                    2 => FLOOR,
+                    3 => GOAL,
+                    4 => GOAL,
+                    5 => CRATE,
+                    6 => {
+                        player = (x, y);
+                        PLAYER
+                    }
+                    _ => FLOOR,
+                };
             }
         }
 
-
-        byteCursor =
-            (bitCursor + 7) / 8;
-
-
+        byteCursor = (bitCursor + 7) / 8;
 
         if levelIndex == id {
-
-            return (
-                map,
-                (width,height),
-                player
-            );
+            return (map, (width, height), player);
         }
 
-
-
-        if byteCursor < bytes.len()
-            && bytes[byteCursor] == 0 {
-
+        if byteCursor < bytes.len() && bytes[byteCursor] == 0 {
             byteCursor += 1;
         }
-
 
         levelIndex += 1;
     }
 
-
-    (Vec::new(),(0,0),(0,0))
+    (Vec::new(), (0, 0), (0, 0))
 }
 
 
@@ -421,11 +372,8 @@ struct GameState {
 async fn main() {
     
 
-    let texture =
-        load_texture("assets.png")
-        .await
-        .unwrap();
-
+    let asset_bytes = include_bytes!("../assets.png");
+    let texture = Texture2D::from_file_with_format(asset_bytes, None);
 
     texture.set_filter(FilterMode::Nearest);
 
