@@ -269,32 +269,6 @@ fn checkWin(
     true
 }
 
-fn draw_custom_text(texture: &Texture2D, text: &str, x: f32, y: f32, scale: f32) {
-    let font_order = "Levl:1234567890";
-    let char_w = 11.0;
-    let char_h = texture.height();
-
-    for (i, c) in text.chars().enumerate() {
-        let target_char = if c == 'e' { 'e' } else { c }; 
-        
-        if let Some(index) = font_order.find(target_char) {
-            let src_x = index as f32 * char_w;
-            
-            draw_texture_ex(
-                texture,
-                x + (i as f32 * char_w * scale),
-                y,
-                WHITE,
-                DrawTextureParams {
-                    dest_size: Some(vec2(char_w * scale, char_h * scale)),
-                    source: Some(Rect::new(src_x, 0.0, char_w, char_h)),
-                    ..Default::default()
-                },
-            );
-        }
-    }
-}
-
 #[derive(Clone)]
 struct GameState {
     map: Vec<Vec<u8>>,
@@ -308,10 +282,6 @@ async fn main() {
     let texture = Texture2D::from_file_with_format(asset_bytes, None);
     texture.set_filter(FilterMode::Nearest);
 
-    let font_bytes = include_bytes!("../font.png");
-    let font_texture = Texture2D::from_file_with_format(font_bytes, None);
-    font_texture.set_filter(FilterMode::Nearest);
-
     let mut currentLevel = 1usize;
 
     let mut level = loadMap(currentLevel - 1).await;
@@ -324,59 +294,103 @@ async fn main() {
 
     let mut history: Vec<GameState> = Vec::new();
 
-    let mut levelInput = String::new();
-
-    let mut enteringLevel = false;
+    let mut show_credits = false;
+    let mut show_go_to_level = false;
+    let mut level_input_buffer = String::new();
 
     loop {
-        if is_key_pressed(KeyCode::L) {
-            enteringLevel = true;
-            levelInput.clear();
+        let mut level_to_load: Option<usize> = None;
+
+        egui_macroquad::ui(|egui_ctx| {
+            egui::TopBottomPanel::top("menu_bar").show(egui_ctx, |ui| {
+                egui::menu::bar(ui, |ui| {
+                    ui.menu_button("Game", |ui| {
+                        if ui.button("Go To Level").clicked() {
+                            show_go_to_level = true;
+                            level_input_buffer = currentLevel.to_string();
+                            ui.close_menu();
+                        }
+                        if ui.button("Credits").clicked() {
+                            show_credits = true;
+                            ui.close_menu();
+                        }
+                        if ui.button("Source Code").clicked() {
+                            let _ = open::that("https://github.com/Pugsby/opensokoban"); 
+                            ui.close_menu();
+                        }
+                        ui.separator();
+                        if ui.button("Quit").clicked() {
+                            std::process::exit(0);
+                        }
+                    });
+                });
+            });
+
+            if show_credits {
+                egui::Window::new("Credits")
+                    .resizable(false)
+                    .collapsible(false)
+                    .show(egui_ctx, |ui| {
+                        ui.label("Creator: Pugsby");
+                        ui.label("Assets: Vellidragon");
+                        ui.vertical_centered(|ui| {
+                            if ui.button("Close").clicked() {
+                                show_credits = false;
+                            }
+                        });
+                    });
+            }
+
+            if show_go_to_level {
+                egui::Window::new("Go To Level")
+                    .resizable(false)
+                    .collapsible(false)
+                    .show(egui_ctx, |ui| {
+                        ui.horizontal(|ui| {
+                            ui.label("Enter Level (1-60):");
+                            let response = ui.text_edit_singleline(&mut level_input_buffer);
+                            response.request_focus();
+                        });
+
+                        ui.add_space(8.0);
+
+                        ui.horizontal(|ui| {
+                            if ui.button("Load").clicked() || (ui.input(|i| i.key_pressed(egui::Key::Enter))) {
+                                if let Ok(number) = level_input_buffer.parse::<usize>() {
+                                    if number >= 1 && number <= MAX_LEVEL {
+                                        level_to_load = Some(number);
+                                        show_go_to_level = false;
+                                    }
+                                }
+                            }
+                            if ui.button("Cancel").clicked() {
+                                show_go_to_level = false;
+                            }
+                        });
+                    });
+            }
+        });
+        if let Some(target_lvl) = level_to_load {
+            currentLevel = target_lvl;
+            level = loadMap(currentLevel - 1).await;
+            map = level.0;
+            size = level.1;
+            player = level.2;
+            history.clear();
+            playerDirection = (1, 0);
         }
 
-        if enteringLevel {
-            while let Some(c) = get_char_pressed() {
-                if c.is_ascii_digit() && levelInput.len() < 2 {
-                    levelInput.push(c);
-                }
-            }
+        let mut wants_input = false;
+        egui_macroquad::cfg(|ctx| {
+            wants_input = ctx.wants_keyboard_input();
+        });
 
-            if is_key_pressed(KeyCode::Backspace) {
-                levelInput.pop();
-            }
-
-            if is_key_pressed(KeyCode::Escape) {
-                enteringLevel = false;
-            }
-
-            if is_key_pressed(KeyCode::Enter) {
-                if let Ok(number) = levelInput.parse::<usize>() {
-                    if number >= 1 && number <= MAX_LEVEL {
-                        currentLevel = number;
-
-                        level = loadMap(currentLevel - 1).await;
-
-                        map = level.0;
-                        size = level.1;
-                        player = level.2;
-
-                        history.clear();
-
-                        playerDirection = (1, 0);
-                    }
-                }
-
-                enteringLevel = false;
-            }
-        } else {
+        if !wants_input {
             if is_key_pressed(KeyCode::R) {
                 level = loadMap(currentLevel - 1).await;
-
                 map = level.0;
                 player = level.2;
-
                 history.clear();
-
                 playerDirection = (1, 0);
             }
 
@@ -419,13 +433,10 @@ async fn main() {
             if checkWin(&map) {
                 if currentLevel < MAX_LEVEL {
                     currentLevel += 1;
-
                     level = loadMap(currentLevel - 1).await;
-
                     map = level.0;
                     size = level.1;
                     player = level.2;
-
                     history.clear();
                     playerDirection = (1, 0);
                 }
@@ -491,13 +502,7 @@ async fn main() {
             }
         }
 
-        if enteringLevel {
-            draw_rectangle(100.0, 100.0, 300.0, 80.0, GRAY);
-            
-            let text_string = format!("Level:{}", levelInput);
-            
-            draw_custom_text(&font_texture, &text_string, 120.0, 125.0, 2.0);
-        }
+        egui_macroquad::draw();
 
         next_frame().await;
     }

@@ -3,7 +3,6 @@ A open source version of Sokoban.
 ## Controls
 - Move: Arrow Keys
 - Undo: Ctrl+Z or Backspace
-- Change Level: L
 ## Build Instructions
 ```
 git clone https://github.com/Pugsby/opensokoban

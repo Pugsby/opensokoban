@@ -1,7 +1,12 @@
 [package]
 name = "opensokoban"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2024"
+
+[dependencies]
+egui-macroquad = "0.17.3"
+egui = "0.31.1"
+open = "5.3.0"
 
 [dependencies.image]
 version = "0.x"
