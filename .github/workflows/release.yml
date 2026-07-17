@@ -1,0 +1,60 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*' # Triggers the workflow whenever you push a tag starting with 'v' (e.g., v1.0.0)
+
+permissions:
+  contents: write # Allows the workflow to create releases and upload assets
+
+jobs:
+  build:
+    name: Build for ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Linux Target
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            artifact_name: opensokoban-linux
+            use_shell: bash
+            
+          # Windows Target
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            artifact_name: opensokoban-windows.exe
+            use_shell: pwsh
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Cargo Build
+        shell: ${{ matrix.use_shell }}
+        run: |
+          cargo build --release --target ${{ matrix.target }}
+
+      - name: Rename & Prepare Artifact
+        shell: ${{ matrix.use_shell }}
+        run: |
+          id="${{ matrix.os }}"
+          if [ "$id" = "windows-latest" ]; then
+            mv target/${{ matrix.target }}/release/opensokoban.exe ./${{ matrix.artifact_name }}
+          else
+            mv target/${{ matrix.target }}/release/opensokoban ./${{ matrix.artifact_name }}
+          fi
+
+      - name: Upload binaries to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ matrix.artifact_name }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
